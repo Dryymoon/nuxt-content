@@ -90,7 +90,12 @@ export default {
 
     document.body.setAttribute('nuxt-content-editor-active', '');
 
-    document.getElementById('__nuxt').scroll(scrollLeft, scrollTop);
+    document.getElementById('__nuxt')
+      .scrollTo({
+        top: scrollTop,
+        left: scrollLeft,
+        behavior: 'instant',
+      });
   },
   beforeDestroy() {
     const scrollTop = document.getElementById('__nuxt').scrollTop;
@@ -98,7 +103,12 @@ export default {
 
     document.body.removeAttribute('nuxt-content-editor-active');
 
-    window.scroll(scrollLeft, scrollTop);
+    window
+      .scrollTo({
+        top: scrollTop,
+        left: scrollLeft,
+        behavior: 'instant',
+      });
   },
   computed: {
     leftToolbar() {
