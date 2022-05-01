@@ -37,6 +37,8 @@
     "puppeteer": "^10.4.0",
     "shiki": "^0.9.2",
     "shiki-twoslash": "^1.2.6",
-    "tib": "^0.7.5"
-  }
+    "tib": "^0.7.5",
+    "unicorn": "^0.0.1"
+  },
+  "dependencies": {}
 }

@@ -1,12 +1,14 @@
 <template>
   <client-only>
     <v-md-editor
+      v-if="nuxtDocument"
       class="nuxtContentEditor"
-      :value="value"
-      @input="(v)=>$emit('input', v)"
+      :value="text"
+      @input="onChange"
       :left-toolbar="leftToolbar"
       :right-toolbar="rightToolbar"
       :toolbar="toolbar"
+      @save="save"
       mode="edit"
       :codemirror-config="{
         mode: 'yaml-frontmatter',
@@ -23,9 +25,7 @@ import VMdEditor from '@kangc/v-md-editor/lib/codemirror-editor';
 import '@kangc/v-md-editor/lib/style/codemirror-editor.css';
 import githubTheme from '@kangc/v-md-editor/lib/theme/github.js';
 import '@kangc/v-md-editor/lib/theme/style/github.css';
-
-// highlightjs
-import hljs from 'highlight.js';
+import debounce from 'lodash/debounce';
 
 // Resources for the codemirror editor
 import Codemirror from 'codemirror';
@@ -59,9 +59,7 @@ import enUS from '@kangc/v-md-editor/lib/lang/en-US';
 
 VMdEditor.Codemirror = Codemirror;
 
-VMdEditor.use(githubTheme, {
-  Hljs: hljs,
-});
+VMdEditor.use(githubTheme);
 
 VMdEditor.lang.use('en-US', enUS);
 
@@ -69,38 +67,50 @@ Vue.use(VMdEditor);
 
 export default {
   props: {
-    value: {
+    nuxtDocument: {
       required: true,
-      type: String,
+      type: Object,
+      default() {
+        return {};
+      }
     },
-    components: Array,
-    variables: Array,
-    slots: Array
+    components: {
+      type: Array,
+      default() {
+        return [];
+      }
+    },
+    variables: {
+      type: Array,
+      default() {
+        return [];
+      }
+    },
+    slots: {
+      type: Array,
+      default() {
+        return [];
+      }
+    }
   },
-  inheritAttrs: false,
-  beforeMount() {
-    const scrollTop = Math.floor(document.body.scrollTop ||
-      document.documentElement.scrollTop ||
-      document.body.parentNode.scrollTop
-    );
-    const scrollLeft = Math.floor(document.body.scrollLeft ||
-      document.documentElement.scrollLeft ||
-      document.body.parentNode.scrollLeft
-    );
-
-    document.body.setAttribute('nuxt-content-editor-active', '');
-
-    document.getElementById('__nuxt').scroll(scrollLeft, scrollTop);
+  watch: {
+    nuxtDocument() {
+      this.load();
+    }
   },
-  beforeDestroy() {
-    const scrollTop = document.getElementById('__nuxt').scrollTop;
-    const scrollLeft = document.getElementById('__nuxt').scrollLeft;
-
-    document.body.removeAttribute('nuxt-content-editor-active');
-
-    window.scroll(scrollLeft, scrollTop);
+  data() {
+    return {
+      text: '',
+    }
+  },
+  created() {
+    if (this.nuxtDocument) this.load();
+    this.saveDebounced = debounce(this.save.bind(this), 250);
   },
   computed: {
+    fileUrl() {
+      return `/<%= options.apiPrefix %>${this.nuxtDocument.path}${this.nuxtDocument.extension}`
+    },
     leftToolbar() {
       // https://code-farmer-i.github.io/vue-markdown-editor/api.html#left-toolbar
       return [
@@ -108,7 +118,7 @@ export default {
         this.components && this.components.length > 0 && 'components',
         this.variables && this.variables.length > 0 && 'variables',
         this.slots && this.slots.length > 0 && 'slots'
-      ].filter(it => it).join(' ');
+      ].filter(it=>it).join(' ');
     },
     rightToolbar() {
       return 'fullscreen exit';
@@ -118,7 +128,7 @@ export default {
         components: {
           text: 'C',
           title: 'Components',
-          menus: Array.isArray(this.components) && this.components
+          menus: this.components
             .map(cmpNameShakeCase => kebabCase(cmpNameShakeCase))
             .sort((a, b) => a.localeCompare(b))
             .map((cmpNameKebabCase) => ({
@@ -141,7 +151,7 @@ export default {
         variables: {
           text: 'V',
           title: 'Variables',
-          menus: Array.isArray(this.variables) && this.variables
+          menus: this.variables
             .sort((a, b) => a.localeCompare(b))
             .map(varName => ({
               text: varName,
@@ -157,7 +167,7 @@ export default {
         slots: {
           text: 'S',
           title: 'Slots',
-          menus: Array.isArray(this.slots) && this.slots
+          menus: this.slots
             .sort((a, b) => a.localeCompare(b))
             .map(slotName => ({
               text: slotName,
@@ -174,13 +184,25 @@ export default {
           title: 'Exit',
           icon: 'v-md-icon-open-in-new',
           action(editor) {
-            editor.$parent.$emit('endEdit');
+            // editor.$root.$destroy();
+            editor.$root.$emit('endEdit');
           },
         }
       }
     }
   },
   methods: {
+    onChange(text) {
+      this.text = text;
+      this.saveDebounced();
+    },
+    async load() {
+      this.text = await fetch(this.fileUrl).then(res => res.text())
+    },
+    async save() {
+      await fetch(this.fileUrl, { method: 'PUT', body: JSON.stringify({ file: this.text }) })
+        .then(res => res.json())
+    },
     /*
     TODO Implement Upload image handler in backend
     handleUploadImage(event, insertImage, files) {

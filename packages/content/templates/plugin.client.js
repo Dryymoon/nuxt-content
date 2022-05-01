@@ -1,5 +1,5 @@
 import Vue from 'vue'
-import NuxtContent from '<%= options.watch && options.liveEdit ? `./nuxt-content.dev` : `./nuxt-content` %>'
+import NuxtContent from './nuxt-content'
 import QueryBuilder from './query-builder'
 
 Vue.component(NuxtContent.name, NuxtContent)
@@ -27,7 +27,7 @@ export default (ctx, inject) => {
   inject('content', $content)
   ctx.$content = $content
 
-    <% if (options.watch) { %>
+    // <% if (options.watch) { %>
       const logger = {
         log: (...args) => console.log('[@nuxt/content]', ...args),
         warn: (...args) => console.warn('[@nuxt/content]', ...args),
@@ -93,5 +93,5 @@ export default (ctx, inject) => {
         ws.onclose = wsClose
       }
       wsConnect()
-        <% } %>
+        // <% } %>
 }

@@ -256,22 +256,31 @@ module.exports = async function (moduleOptions) {
   // Add client plugin component
   this.addTemplate({
     fileName: 'content/nuxt-content.js',
-    src: join(__dirname, '../templates/nuxt-content.js')
+    src: join(__dirname, '../templates/nuxt-content.js'),
+    options: {
+      watch: options.watch,
+      liveEdit: options.liveEdit
+    }
   })
   if (options.watch && options.liveEdit) {
-    // Add dev client plugin component
+    // Add dev editor runtime wrapper
     this.addTemplate({
-      fileName: 'content/nuxt-content.dev.vue',
-      src: join(__dirname, '../templates/nuxt-content.dev.vue'),
+      fileName: 'content/editor-runtime.vue',
+      src: join(__dirname, '..', 'templates', 'editor-runtime.vue'),
       options: {
         apiPrefix: options.apiPrefixWithBase,
         editor: options.editor
       }
     })
+
     // Add dev editor component
     this.addTemplate({
       fileName: 'content/editor.vue',
-      src: join(__dirname, '..', 'templates', 'editor.vue')
+      src: join(__dirname, '..', 'templates', 'editor.vue'),
+      options: {
+        // apiPrefix: options.apiPrefixWithBase,
+        // editor: options.editor
+      }
     })
   }
 

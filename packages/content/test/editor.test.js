@@ -17,7 +17,7 @@ describe('editor option', () => {
       page = await browser.page(url('/home'))
       const html = await page.getHtml()
 
-      expect(html).toMatch(/<div><h1>.*<\/h1>\s*<div\s*.*class="nuxt-content-container"\s*.*><textarea.*><\/textarea>\s*<div\s*.*class="nuxt-content"\s*.*><p.*>This is the home page!<\/p><\/div><\/div><\/div>/)
+      expect(html).toContain('v-md-editor')
 
       await nuxt.close()
       await browser.close()
@@ -34,7 +34,7 @@ describe('editor option', () => {
       page = await browser.page(url('/home'))
       const html = await page.getHtml()
 
-      expect(html).toMatch(/<div><h1>.*<\/h1>\s*<div\s*.*class="nuxt-content-container"\s*.*><textarea.*><\/textarea>\s*<div\s*.*class="nuxt-content"\s*.*><p.*>This is the home page!<\/p><\/div><\/div><\/div>/)
+      expect(html).toContain('v-md-editor')
 
       await nuxt.close()
       await browser.close()
@@ -51,12 +51,60 @@ describe('editor option', () => {
 
       browser = await createBrowser('puppeteer')
       page = await browser.page(url('/home'))
-      const html = await page.getHtml()
 
-      expect(html).toMatch(/<div><h1>.*<\/h1>\s*<div\s*.*class="nuxt-content-container"\s*.*><div .*class="editor.*><\/div>\s*<div\s*.*class="nuxt-content"\s*.*><p.*>This is the home page!<\/p><\/div><\/div><\/div>/)
+      // Double click
+      const selector = '.nuxt-content'
+      const rect = await page.evaluate((selector) => {
+        const element = document.querySelector(selector)
+        if (!element) {
+          return null
+        }
+        const { x, y } = element.getBoundingClientRect()
+        return { x, y }
+      }, selector)
+      await page.mouse.click(rect.x, rect.y, { clickCount: 2, delay: 100 })
+
+      await page.waitForSelector('.editor')
+
+      await expect(page.getHtml()).resolves.toMatch(/<div.*class="editor.*><\/div>/s)
+      await expect(page.getHtml()).resolves.not.toContain('v-md-editor')
 
       await nuxt.close()
       await browser.close()
     }, 60000)
   })
+})
+
+describe('editor works', () => {
+  test('startup', async () => {
+    const { nuxt } = await setup({
+      ...loadConfig(__dirname),
+      buildDir: path.join(__dirname, 'fixture', '.nuxt-dev'),
+      content: { watch: true }
+    })
+
+    const browser = await createBrowser('puppeteer')
+    const page = await browser.page(url('/home'))
+
+    // Double click
+    const selector = '.nuxt-content'
+    const rect = await page.evaluate((selector) => {
+      const element = document.querySelector(selector)
+      if (!element) {
+        return null
+      }
+      const { x, y } = element.getBoundingClientRect()
+      return { x, y }
+    }, selector)
+    await page.mouse.click(rect.x, rect.y, { clickCount: 2, delay: 100 })
+
+    await page.waitForSelector('.v-md-editor')
+
+    const editorHtml = await page.getElementHtml('.v-md-editor')
+
+    expect(editorHtml).toContain('This is the home page!')
+
+    await nuxt.close()
+    await browser.close()
+  }, 60000)
 })

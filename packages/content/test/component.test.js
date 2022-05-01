@@ -95,28 +95,28 @@ describe('component', () => {
       page = await browser.page(url('/home'))
       const html = await page.getHtml()
 
-      expect(html).toMatch(/<div><h1>.*<\/h1>\s*<div\s*.*class="nuxt-content-container"\s*.*><textarea.*><\/textarea>\s*<div\s*.*class="nuxt-content"\s*.*><p.*>This is the home page!<\/p><\/div><\/div><\/div>/)
+      expect(html).toMatch(/<div><h1>.*<\/h1>\s*<div\s*.*class="nuxt-content"\s*.*><p.*>This is the home page!<\/p><\/div><\/div>/)
     })
 
     test('has generated html with id', async () => {
       page = await browser.page(url('/home?withId=true'))
       const html = await page.getHtml()
 
-      expect(html).toMatch(/<div><h1>.*<\/h1>\s*<div\s*.*id="my-id"\s*class="nuxt-content-container"\s*.*><textarea.*><\/textarea>\s*<div\s*.*class="nuxt-content"\s*.*id="my-id"\s*.*><p.*>This is the home page!<\/p><\/div><\/div><\/div>/)
+      expect(html).toMatch(/<div><h1>.*<\/h1>\s*<div\s*.*class="nuxt-content"\s*.*><p.*>This is the home page!<\/p><\/div><\/div>/)
     })
 
     test('has generated html with "tag" as root element', async () => {
       page = await browser.page(url('/home?tag=article'))
       const html = await page.getHtml()
 
-      expect(html).toMatch(/<div><h1>.*<\/h1>\s*<article\s*.*class="nuxt-content-container"\s*.*><textarea.*><\/textarea>\s*<div\s*.*class="nuxt-content"\s*.*><p.*>This is the home page!<\/p><\/div><\/article><\/div>/)
+      expect(html).toMatch(/<div><h1>.*<\/h1>\s*<article\s*.*class="nuxt-content"\s*.*><p.*>This is the home page!<\/p><\/article><\/div>/)
     })
 
     test('has generated html with class', async () => {
       page = await browser.page(url('/home?withClass=true'))
       const html = await page.getHtml()
 
-      expect(html).toMatch(/<div><h1>.*<\/h1>\s*<div\s*.*class="nuxt-content-container"\s*.*><textarea.*><\/textarea>\s*<div\s*.*class="my-class nuxt-content"\s*.*><p.*>This is the home page!<\/p><\/div><\/div><\/div>/)
+      expect(html).toMatch(/<div><h1>.*<\/h1>\s*<div\s*.*class="my-class nuxt-content"\s*.*><p.*>This is the home page!<\/p><\/div><\/div>/)
     })
   })
 })

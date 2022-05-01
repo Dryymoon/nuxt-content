@@ -1,5 +1,6 @@
 import Vue from 'vue'
-import NuxtContent from '<%= options.watch && options.liveEdit ? `./nuxt-content.dev` : `./nuxt-content` %>'
+// import NuxtContent from '<%= options.watch && options.liveEdit ? `./nuxt-content.dev` : `./nuxt-content` %>'
+import NuxtContent from './nuxt-content'
 
 Vue.component(NuxtContent.name, NuxtContent)
 

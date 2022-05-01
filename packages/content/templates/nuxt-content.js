@@ -6,12 +6,13 @@ const rxOn = /^@|^v-on:/
 const rxBind = /^:|^v-bind:/
 const rxModel = /^v-model/
 const nativeInputs = ['select', 'textarea', 'input']
+const valueRegXP = /{{(\s+)?(?<variable>[\S]+)(\s+)?}}/g
 
-function evalInContext (code, context) {
+function evalInContext(code, context) {
   return new Function("with(this) { return (" + code + ") }").call(context)
 }
 
-function propsToData (node, doc) {
+function propsToData(node, doc) {
   const { tag, props } = node
   return Object.keys(props).reduce(function (data, key) {
     const k = key.replace(/.*:/, '')
@@ -31,8 +32,8 @@ function propsToData (node, doc) {
       const event = mods.lazy ? 'change' : 'input'
       const processor =
         mods.number ? (d => +d) :
-        mods.trim ? (d => d.trim()) :
-        d => d
+          mods.trim ? (d => d.trim()) :
+            d => d
 
       obj[field] = evalInContext(value, doc)
       data.on = data.on || {}
@@ -60,34 +61,64 @@ function propsToData (node, doc) {
  * Create the scoped slots from `node` template children. Templates for default
  * slots are processed as regular children in `processNode`.
  */
-function slotsToData (node, h, doc) {
+function slotsToData(node, h, doc, options) {
   const data = {}
   const children = node.children || []
 
   children.forEach((child) => {
     // Regular children and default templates are processed inside `processNode`.
-    if (!isTemplate(child) || isDefaultTemplate(child)) { return }
+    if (!isTemplate(child) || isDefaultTemplate(child)) {
+      return
+    }
 
     // Non-default templates are converted into slots.
     data.scopedSlots = data.scopedSlots || {}
     const template = child
     const name = getSlotName(template)
-    const vDomTree = template.content.map(tmplNode => processNode(tmplNode, h, doc))
-    data.scopedSlots[name] = function () { return vDomTree }
+    const vDomTree = template.content.map(tmplNode => processNode(tmplNode, h, doc, options))
+    data.scopedSlots[name] = function () {
+      return vDomTree
+    }
   })
 
   return data
 }
 
-function processNode (node, h, doc) {
+function processNode(node, h, doc, options) {
+  const { scopedSlots, attrs, changer } = options;
   /**
    * Return raw value as it is
    */
   if (node.type === 'text') {
-    return node.value
+
+    let text = node.value
+
+    if (attrs && Object.keys(attrs).length > 0) {
+      text = text.replace(valueRegXP, (match, __, variable) => {
+        if (!attrs.hasOwnProperty(variable)) return match
+        return String(attrs[variable])
+      });
+    }
+
+    return text
   }
 
-  const slotData = slotsToData(node || {}, h, doc)
+  /**
+   * Populate vue slot
+   */
+  if (node.tag === 'slot') {
+    const slotName = node.props.name || 'default'
+    if (scopedSlots && scopedSlots[slotName]) return scopedSlots[slotName]()
+    return
+  }
+
+  /**
+   * Enhance node by function
+   */
+  if (changer) node = changer(node) || node;
+
+
+  const slotData = slotsToData(node || {}, h, doc, options)
   const propData = propsToData(node || {}, doc)
   const data = Object.assign({}, slotData, propData)
 
@@ -97,10 +128,12 @@ function processNode (node, h, doc) {
   const children = []
   for (const child of node.children) {
     // Template nodes pointing to non-default slots are processed inside `slotsToData`.
-    if (isTemplate(child) && !isDefaultTemplate(child)) { continue }
+    if (isTemplate(child) && !isDefaultTemplate(child)) {
+      continue
+    }
 
     const processQueue = isDefaultTemplate(child) ? child.content : [child]
-    children.push(...processQueue.map(node => processNode(node, h, doc)))
+    children.push(...processQueue.map(node => processNode(node, h, doc, options)))
   }
 
   return h(node.tag, data, children)
@@ -108,23 +141,60 @@ function processNode (node, h, doc) {
 
 const DEFAULT_SLOT = 'default'
 
-function isDefaultTemplate (node) {
+function isDefaultTemplate(node) {
   return isTemplate(node) && getSlotName(node) === DEFAULT_SLOT
 }
 
-function isTemplate (node) {
+function isTemplate(node) {
   return node.tag === 'template'
 }
 
-function getSlotName (node) {
+function getSlotName(node) {
   let name = ''
   for (const propName of Object.keys(node.props)) {
-    if (!propName.startsWith('#') && !propName.startsWith('v-slot:')) { continue }
+    if (!propName.startsWith('#') && !propName.startsWith('v-slot:')) {
+      continue
+    }
     name = propName.split(/[:#]/, 2)[1]
     break
   }
   return name || DEFAULT_SLOT
 }
+
+// <% if (options.watch && options.liveEdit) { %>
+
+import Vue from 'vue';
+
+const NCEditor = process.client ? require('./editor-runtime').default : null;
+
+let NCEVueInstance;
+
+const NCEVueComponent = Vue.extend(NCEditor);
+
+function NCEStart({ nuxtDocument, components, variables, slots }) {
+  if (NCEVueInstance) NCEVueInstance.$destroy();
+
+  const el = document.createElement("div");
+  el.setAttribute('nuxt-content-editor-mount-point', '');
+  document.body.appendChild(el);
+
+  NCEVueInstance = new NCEVueComponent({
+    propsData: { nuxtDocument, components, variables, slots },
+    destroyed() {
+      NCEVueInstance = undefined;
+      if (this.$el) {
+        this.$el.parentNode.removeChild(this.$el);
+      } else {
+        // If Vue dont mounted due to error, it prevent duplicate divs
+        el.parentNode.removeChild(el);
+      }
+    }
+  });
+
+  NCEVueInstance.$mount(el);
+}
+
+// <% } %>
 
 export default {
   name: 'NuxtContent',
@@ -136,10 +206,13 @@ export default {
     tag: {
       type: String,
       default: 'div'
+    },
+    changer: {
+      type: Function,
     }
   },
-  render (h, { data, props }) {
-    const { document, tag } = props
+  render(h, { data, props, scopedSlots, parent }) {
+    const { document, tag, changer } = props
     const { body } = document || {}
     if (!body || !body.children || !Array.isArray(body.children)) {
       return
@@ -154,7 +227,42 @@ export default {
       classes = [data.class]
     }
     data.class = classes.concat('nuxt-content')
-    data.props = Object.assign({ ...body.props }, data.props)
-    return h(tag, data, body.children.map(child => processNode(child, h, document)))
+    // data.props = Object.assign({ ...body.props }, data.props)
+    data.props = {
+      ...body.props,
+      ...data.props
+    };
+
+    // <% if (options.watch && options.liveEdit) { %>
+
+    const origDblClick = data.on && data.on.dblclick;
+
+    data.on = {
+      ...data.on,
+      dblclick: (event) => {
+        if (origDblClick) origDblClick(event);
+
+        // Omit self component from other local registered components
+        const { [parent.$options.name]: _, ...localComponents } = parent.$options.components;
+
+        NCEStart({
+          nuxtDocument: document,
+          components: Object.keys(localComponents),
+          variables: Object.keys(data.attrs),
+          slots: Object.keys(scopedSlots),
+        });
+      }
+    }
+    // <% } %>
+
+    return h(
+      tag,
+      data,
+      body.children.map(child => processNode(child, h, document, {
+        scopedSlots,
+        attrs: data.attrs,
+        changer
+      }))
+    );
   }
 }
