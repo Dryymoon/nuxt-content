@@ -7,12 +7,15 @@ const rxBind = /^:|^v-bind:/
 const rxModel = /^v-model/
 const nativeInputs = ['select', 'textarea', 'input']
 const valueRegXP = /{{(\s+)?(?<variable>[\S]+)(\s+)?}}/g
+const valueRegXP2 = /\$(?<variable>\w+)/g
 
 function evalInContext(code, context) {
-  return new Function("with(this) { return (" + code + ") }").call(context)
+  return new Function(`with(this) {
+    if ( typeof(${code}) != 'undefined' ) return ( ${code} )
+  }`).call(context)
 }
 
-function propsToData(node, doc) {
+function propsToData(node, doc, { extraVariables }) {
   const { tag, props } = node
   return Object.keys(props).reduce(function (data, key) {
     const k = key.replace(/.*:/, '')
@@ -40,14 +43,19 @@ function propsToData(node, doc) {
       data.on[event] = e => doc[value] = processor(e)
     } else if (key === 'v-bind') {
       const val = value in doc ? doc[value] : evalInContext(value, doc)
-      obj = Object.assign(obj, val)
+      // obj = Object.assign(obj, val)
+      Object.assign(obj, val)
     } else if (rxOn.test(key)) {
       key = key.replace(rxOn, '')
       data.on = data.on || {}
       data.on[key] = evalInContext(value, doc)
     } else if (rxBind.test(key)) {
       key = key.replace(rxBind, '')
-      obj[key] = value in doc ? doc[value] : evalInContext(value, doc)
+      obj[key] = value in doc
+        ? doc[value]
+        : value in extraVariables
+          ? extraVariables[value]
+          : evalInContext(value, doc)
     } else if (Array.isArray(value)) {
       obj[attribute] = value.join(' ')
     } else {
@@ -85,7 +93,17 @@ function slotsToData(node, h, doc, options) {
 }
 
 function processNode(node, h, doc, options) {
-  const { scopedSlots, attrs, changer } = options;
+  const { scopedSlots, extraVariables, changer } = options;
+  // console.log(node.tag, node);
+
+  /*
+  a {
+  type: 'element',
+  tag: 'a',
+  props: { href: '$registrationLink' },
+  children: [ { type: 'text', value: 'Продолжить регистрацию' } ]
+}
+   */
   /**
    * Return raw value as it is
    */
@@ -93,11 +111,16 @@ function processNode(node, h, doc, options) {
 
     let text = node.value
 
-    if (attrs && Object.keys(attrs).length > 0) {
-      text = text.replace(valueRegXP, (match, __, variable) => {
-        if (!attrs.hasOwnProperty(variable)) return match
-        return String(attrs[variable])
-      });
+    if (extraVariables && Object.keys(extraVariables).length > 0) {
+      text = text
+        .replace(valueRegXP, (match, __, variable) => {
+          if (!extraVariables.hasOwnProperty(variable)) return match
+          return String(extraVariables[variable])
+        })
+        .replace(valueRegXP2, (match, __, variable) => {
+          if (!extraVariables.hasOwnProperty(variable)) return match
+          return String(extraVariables[variable])
+        })
     }
 
     return text
@@ -119,7 +142,7 @@ function processNode(node, h, doc, options) {
 
 
   const slotData = slotsToData(node || {}, h, doc, options)
-  const propData = propsToData(node || {}, doc)
+  const propData = propsToData(node || {}, doc, { extraVariables })
   const data = Object.assign({}, slotData, propData)
 
   /**
@@ -171,15 +194,18 @@ let NCEVueInstance;
 
 const NCEVueComponent = Vue.extend(NCEditor);
 
-function NCEStart({ nuxtDocument, components, variables, slots }) {
-  if (NCEVueInstance) NCEVueInstance.$destroy();
+function NCEStart({ nuxtDocument, components, variables, slots, initialInteracted }) {
+  if (NCEVueInstance) {
+    Object.assign(NCEVueInstance, { nuxtDocument, components, variables, slots, initialInteracted});
+    return ;
+  }
 
   const el = document.createElement("div");
   el.setAttribute('nuxt-content-editor-mount-point', '');
   document.body.appendChild(el);
 
   NCEVueInstance = new NCEVueComponent({
-    propsData: { nuxtDocument, components, variables, slots },
+    propsData: { nuxtDocument, components, variables, slots, initialInteracted },
     destroyed() {
       NCEVueInstance = undefined;
       if (this.$el) {
@@ -199,6 +225,7 @@ function NCEStart({ nuxtDocument, components, variables, slots }) {
 export default {
   name: 'NuxtContent',
   functional: true,
+  // inheritAttrs: false,
   props: {
     document: {
       required: true
@@ -233,6 +260,13 @@ export default {
       ...data.props
     };
 
+    const extraVariables = {};
+    Object.keys(data.attrs).forEach(key => {
+      extraVariables[camelize(key)] = data.attrs[key];
+    })
+
+    data.attrs = {};
+
     // <% if (options.watch && options.liveEdit) { %>
 
     const origDblClick = data.on && data.on.dblclick;
@@ -248,8 +282,9 @@ export default {
         NCEStart({
           nuxtDocument: document,
           components: Object.keys(localComponents),
-          variables: Object.keys(data.attrs),
+          variables: Object.keys(extraVariables),
           slots: Object.keys(scopedSlots),
+          initialInteracted: [event.clientX, event.clientY]
         });
       }
     }
@@ -260,9 +295,15 @@ export default {
       data,
       body.children.map(child => processNode(child, h, document, {
         scopedSlots,
-        attrs: data.attrs,
+        extraVariables,
         changer
       }))
     );
   }
+}
+
+function camelize(str) {
+  return str.replace(/(?:^\w|[A-Z]|\b\w)/g, function (word, index) {
+    return index === 0 ? word.toLowerCase() : word.toUpperCase();
+  }).replace(/\s+/g, '');
 }

@@ -1,6 +1,7 @@
 <template>
   <client-only>
     <v-md-editor
+      vif="value !== undefined"
       class="nuxtContentEditor"
       :value="value"
       @input="(v)=>$emit('input', v)"
@@ -11,6 +12,7 @@
       :codemirror-config="{
         mode: 'yaml-frontmatter',
       }"
+      ref="mdEditor"
     >
     </v-md-editor>
   </client-only>
@@ -75,18 +77,33 @@ export default {
     },
     components: Array,
     variables: Array,
-    slots: Array
+    slots: Array,
+    initialInteracted: Array,
+    isEditing: Boolean
   },
   inheritAttrs: false,
+  watch: {
+    isEditing(v, oldV) {
+      if (!oldV && v) {
+        this.$nextTick(() => {
+          this.$refs.mdEditor.codemirrorInstance.clearHistory();
+          this.$refs.mdEditor.codemirrorInstance.focus();
+        });
+      }
+    }
+  },
   beforeMount() {
     const scrollTop = Math.floor(document.body.scrollTop ||
       document.documentElement.scrollTop ||
       document.body.parentNode.scrollTop
     );
-    const scrollLeft = Math.floor(document.body.scrollLeft ||
-      document.documentElement.scrollLeft ||
-      document.body.parentNode.scrollLeft
-    );
+
+    const width = window.innerWidth
+      || document.documentElement.clientWidth
+      || document.body.clientWidth;
+
+    let scrollLeft = Math.round(this.initialInteracted[0] - width / 4);
+    if (scrollLeft < 0) scrollLeft = 0;
 
     document.body.setAttribute('nuxt-content-editor-active', '');
 
@@ -96,6 +113,11 @@ export default {
         left: scrollLeft,
         behavior: 'instant',
       });
+  },
+  mounted() {
+    this.$nextTick(() => {
+      this.$refs.mdEditor.codemirrorInstance.focus();
+    });
   },
   beforeDestroy() {
     const scrollTop = document.getElementById('__nuxt').scrollTop;

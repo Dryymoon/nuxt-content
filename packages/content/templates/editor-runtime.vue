@@ -8,6 +8,7 @@
       :components="components"
       :variables="variables"
       :slots="slots"
+      :initialInteracted="initialInteracted"
       @input="onChange"
       @endEdit="endEdit"
     />
@@ -31,24 +32,10 @@ export default {
         return {};
       }
     },
-    components: {
-      type: Array,
-      default() {
-        return [];
-      }
-    },
-    variables: {
-      type: Array,
-      default() {
-        return [];
-      }
-    },
-    slots: {
-      type: Array,
-      default() {
-        return [];
-      }
-    }
+    components: Array,
+    variables: Array,
+    slots: Array,
+    initialInteracted: Array
   },
   watch: {
     nuxtDocument(v, oldV) {
