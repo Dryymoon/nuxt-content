@@ -79,9 +79,30 @@ export default {
     variables: Array,
     slots: Array,
     initialInteracted: Array,
-    isEditing: Boolean
+    isEditing: Boolean,
+    nuxtContentEl: HTMLDivElement
   },
   inheritAttrs: false,
+  data() {
+    let availableViews = ['50-50', '50-50-scaled', 'fullscreen'];
+
+    const wSesSt = window.sessionStorage.getItem('nuxt-content-editor-current-view');
+    const wLocSt = window.localStorage.getItem('nuxt-content-editor-current-view');
+
+    if (availableViews.includes(wSesSt)) {
+      while (availableViews[0] !== wSesSt) {
+        availableViews.push(availableViews.shift());
+      }
+    } else if (availableViews.includes(wLocSt)) {
+      while (availableViews[0] !== wLocSt) {
+        availableViews.push(availableViews.shift());
+      }
+    }
+
+    return {
+      availableViews
+    };
+  },
   watch: {
     isEditing(v, oldV) {
       if (!oldV && v) {
@@ -90,29 +111,71 @@ export default {
           this.$refs.mdEditor.codemirrorInstance.focus();
         });
       }
+    },
+    currentView(v, oldV) {
+      document.body.removeAttribute('nuxt-content-editor-' + oldV);
+      document.body.setAttribute('nuxt-content-editor-' + v, '');
+      window.sessionStorage.setItem('nuxt-content-editor-current-view', v);
+      window.localStorage.setItem('nuxt-content-editor-current-view', v);
     }
   },
   beforeMount() {
-    const scrollTop = Math.floor(document.body.scrollTop ||
-      document.documentElement.scrollTop ||
-      document.body.parentNode.scrollTop
-    );
+    if (this.currentView === '50-50') {
 
-    const width = window.innerWidth
-      || document.documentElement.clientWidth
-      || document.body.clientWidth;
+      const { left: elLeft, width: elWidth } = this.nuxtContentEl.getBoundingClientRect()
 
-    let scrollLeft = Math.round(this.initialInteracted[0] - width / 4);
-    if (scrollLeft < 0) scrollLeft = 0;
+      const windowScrollTop = Math.floor(document.body.scrollTop ||
+        document.documentElement.scrollTop ||
+        document.body.parentNode.scrollTop
+      );
 
-    document.body.setAttribute('nuxt-content-editor-active', '');
+      const screenWidth = window.innerWidth
+        || document.documentElement.clientWidth
+        || document.body.clientWidth;
 
-    document.getElementById('__nuxt')
-      .scrollTo({
-        top: scrollTop,
-        left: scrollLeft,
-        behavior: 'instant',
-      });
+      let scrollLeft = 0;
+      let scrollTop = windowScrollTop;
+
+      if (elWidth <= screenWidth / 2) {
+        scrollLeft = elLeft + elWidth / 2 - screenWidth / 4;
+      }
+
+      if (elWidth > screenWidth / 2) {
+        scrollLeft = elLeft - 20;
+      }
+
+      if (scrollLeft < 0) scrollLeft = 0;
+
+      document.body.setAttribute('nuxt-content-editor-50-50', '');
+
+      document.getElementById('__nuxt')
+        .scrollTo({
+          top: scrollTop,
+          left: scrollLeft,
+          behavior: 'instant',
+        });
+    }
+
+    if (this.currentView === '50-50-scaled') {
+      const windowScrollTop = Math.floor(document.body.scrollTop ||
+        document.documentElement.scrollTop ||
+        document.body.parentNode.scrollTop
+      );
+
+      const windowScrollLeft = Math.floor(document.body.scrollLeft ||
+        document.documentElement.scrollLeft ||
+        document.body.parentNode.scrollLeft
+      );
+
+      document.body.setAttribute('nuxt-content-editor-50-50-scaled', '');
+
+      document.getElementById('__nuxt')
+        .scrollTo({
+          top: windowScrollTop,
+          left: windowScrollLeft,
+          behavior: 'instant',
+        });
+    }
   },
   mounted() {
     this.$nextTick(() => {
@@ -121,18 +184,32 @@ export default {
   },
   beforeDestroy() {
     const scrollTop = document.getElementById('__nuxt').scrollTop;
-    const scrollLeft = document.getElementById('__nuxt').scrollLeft;
+    // const scrollLeft = document.getElementById('__nuxt').scrollLeft;
 
-    document.body.removeAttribute('nuxt-content-editor-active');
+    if (this.currentView === '50-50') {
+      document.body.removeAttribute('nuxt-content-editor-50-50');
+    }
 
-    window
-      .scrollTo({
-        top: scrollTop,
-        left: scrollLeft,
-        behavior: 'instant',
-      });
+    if (this.currentView === '50-50-scaled') {
+      document.body.removeAttribute('nuxt-content-editor-50-50-scaled');
+    }
+
+    window.scrollTo({
+      top: scrollTop,
+      left: 0,
+      behavior: 'instant',
+    });
+
+    document.body.getAttributeNames().forEach((attrName) => {
+      if (attrName.startsWith('nuxt-content-editor')) {
+        document.body.removeAttribute(attrName);
+      }
+    });
   },
   computed: {
+    currentView() {
+      return this.availableViews[0];
+    },
     leftToolbar() {
       // https://code-farmer-i.github.io/vue-markdown-editor/api.html#left-toolbar
       return [
@@ -143,7 +220,7 @@ export default {
       ].filter(it => it).join(' ');
     },
     rightToolbar() {
-      return 'fullscreen exit';
+      return 'changeView exit';
     },
     toolbar() {
       return {
@@ -202,6 +279,14 @@ export default {
               },
             }))
         },
+        changeView: {
+          title: 'Change screen size',
+          icon: 'v-md-icon-fullscreen',
+          action(editor) {
+            // editor.$parent.$emit('endEdit');
+            editor.$parent.changeView();
+          },
+        },
         exit: {
           title: 'Exit',
           icon: 'v-md-icon-open-in-new',
@@ -213,6 +298,9 @@ export default {
     }
   },
   methods: {
+    changeView() {
+      this.availableViews.push(this.availableViews.shift());
+    }
     /*
     TODO Implement Upload image handler in backend
     handleUploadImage(event, insertImage, files) {
@@ -243,32 +331,50 @@ function kebabCase(string) {
 </script>
 
 <style lang="css">
-[nuxt-content-editor-active] #__nuxt {
+[nuxt-content-editor-50-50] #__nuxt {
   position: fixed;
-  left: calc(50% + 10px);
+  left: 50%;
   right: 0;
   top: 0;
   bottom: 0;
   overflow: auto;
 }
 
-[nuxt-content-editor-active] #__layout {
+[nuxt-content-editor-50-50] #__layout {
   min-width: 100vw;
 }
 
+[nuxt-content-editor-50-50-scaled] #__nuxt {
+  position: fixed;
+  left: 50%;
+  right: -50%;
+  top: 0;
+  bottom: -100%;
+  overflow: auto;
+  transform: scale(0.5);
+  transform-origin: 0 0;
+}
+
 .nuxtContentEditor {
+  z-index: 10000000;
   position: fixed;
   top: 0;
   left: 0;
-  right: calc(50% + 10px);
+  right: 50%;
   bottom: 0;
   display: flex;
   transition: right 150ms;
+  border-right: 1px solid lightgrey;
+}
+
+[nuxt-content-editor-fullscreen] .nuxtContentEditor {
+  right: 0;
 }
 
 .nuxtContentEditor.v-md-editor {
   width: auto;
   box-shadow: unset;
+  border-radius: unset;
 }
 
 .nuxtContentEditor.v-md-editor--fullscreen {
@@ -277,5 +383,9 @@ function kebabCase(string) {
   right: 0;
   top: 0;
   bottom: 0;
+}
+
+.nuxtContentEditor.v-md-editor .codemirror-wrapper.codemirror-reset .CodeMirror pre {
+  word-break: break-word;
 }
 </style>

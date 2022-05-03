@@ -1,18 +1,17 @@
 <template>
-  <client-only>
-    <editor
-      :is-loading="!loaded"
-      :is-loaded="loaded"
-      :is-editing="loaded"
-      :value="value"
-      :components="components"
-      :variables="variables"
-      :slots="slots"
-      :initialInteracted="initialInteracted"
-      @input="onChange"
-      @endEdit="endEdit"
-    />
-  </client-only>
+  <editor
+    :is-loading="!loaded"
+    :is-loaded="loaded"
+    :is-editing="loaded"
+    :value="value"
+    :components="components"
+    :variables="variables"
+    :slots="slots"
+    :initialInteracted="initialInteracted"
+    :nuxtContentEl="nuxtContentEl"
+    @input="onChange"
+    @endEdit="endEdit"
+  />
 </template>
 
 <script>
@@ -35,7 +34,8 @@ export default {
     components: Array,
     variables: Array,
     slots: Array,
-    initialInteracted: Array
+    initialInteracted: Array,
+    nuxtContentEl: HTMLDivElement
   },
   watch: {
     nuxtDocument(v, oldV) {

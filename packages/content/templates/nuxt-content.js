@@ -194,9 +194,9 @@ let NCEVueInstance;
 
 const NCEVueComponent = Vue.extend(NCEditor);
 
-function NCEStart({ nuxtDocument, components, variables, slots, initialInteracted }) {
+function NCEStart(options) {
   if (NCEVueInstance) {
-    Object.assign(NCEVueInstance, { nuxtDocument, components, variables, slots, initialInteracted});
+    Object.assign(NCEVueInstance, options);
     return ;
   }
 
@@ -205,7 +205,7 @@ function NCEStart({ nuxtDocument, components, variables, slots, initialInteracte
   document.body.appendChild(el);
 
   NCEVueInstance = new NCEVueComponent({
-    propsData: { nuxtDocument, components, variables, slots, initialInteracted },
+    propsData: options,
     destroyed() {
       NCEVueInstance = undefined;
       if (this.$el) {
@@ -279,12 +279,15 @@ export default {
         // Omit self component from other local registered components
         const { [parent.$options.name]: _, ...localComponents } = parent.$options.components;
 
+        const nuxtContentEl = event.target.closest('.nuxt-content');
+
         NCEStart({
           nuxtDocument: document,
           components: Object.keys(localComponents),
           variables: Object.keys(extraVariables),
           slots: Object.keys(scopedSlots),
-          initialInteracted: [event.clientX, event.clientY]
+          initialInteracted: [event.clientX, event.clientY],
+          nuxtContentEl,
         });
       }
     }
